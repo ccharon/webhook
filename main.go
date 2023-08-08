@@ -25,9 +25,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dropPrivileges(configuration.User)
-	log.Printf("Dropped Privileges using user \"%s\" from now on \n", configuration.User)
-
 	http.HandleFunc("/", handlePostRequest)
 	log.Printf("Starting server (%s:%d) \n", configuration.Server.Host, configuration.Server.Port)
 

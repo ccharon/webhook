@@ -12,7 +12,6 @@ import (
 
 type Configuration struct {
 	Server Server `json:"server"`
-	User   string `json:"user"`
 	Token  string `json:"token"`
 	Script string `json:"script"`
 }
