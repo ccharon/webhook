@@ -1,0 +1,35 @@
+GET http://localhost:6080
+Accept: application/json
+
+###
+POST http://localhost:6080/
+Content-Type: application/json
+
+{
+  "id": "44444",
+  "image": "ccharon/echoip"
+}
+
+###
+POST http://localhost:6080/
+Content-Type: application/json
+
+{
+  "id": "44444",
+  "image": "ccharon/echoip",
+  "token": "abcdefgh"
+}
+
+###
+
+POST http://localhost:6080/
+Content-Type: application/json
+
+{
+  "id": "44444",
+  "image": "ccharon/echoip",
+  "token": "abcdefgh",
+  "aa": "wupi"
+}
+
+###

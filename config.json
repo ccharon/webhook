@@ -1,0 +1,9 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 6080
+  },
+  "user": "christian",
+  "token": "abcdefgh",
+  "script": "/Users/christian/IdeaProjects/webhook/deploy.sh"
+}
