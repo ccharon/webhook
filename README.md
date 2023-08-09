@@ -4,6 +4,8 @@ The idea is to start this restapi with a systemd service.
 The api should bind to some port on localhost then a nginx config should be used to forward requests to the api.
 If publishing the api you should enforce https so that the token will be transferred encrypted
 
+All files listed here are also available in the files folder in this repo.
+
 #### install go for your distribution
 ```bash
 #debian
@@ -148,4 +150,12 @@ systemctl restart nginx
 #### curl test call
 ```bash
 curl -X POST https://webhook.mysite.com -H "Content-Type: application/json" -d '{"id": "44444", "image": "ccharon/echoip", "token": "abcdefgh"}'
+```
+
+### Example Usage in github actions pipeline
+see whole [pipeline](https://github.com/ccharon/echoip/blob/master/.github/workflows/ci.yml)
+```yaml
+      - name: Trigger deployment
+        run: |
+          curl -X POST ${{ secrets.WEBHOOK_URL }} -H "Content-Type: application/json" -d '{"id": "${{ github.run_id }}", "image": "${{ env.DOCKER_IMAGE }}", "token": "${{ secrets.WEBHOOK_TOKEN }}"}'
 ```

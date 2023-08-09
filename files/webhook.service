@@ -1,0 +1,14 @@
+[Unit]
+Description=webhook service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=webhook
+ExecStart=/usr/local/sbin/webhook -c /etc/webhook/config.json
+
+[Install]
+WantedBy=multi-user.target
