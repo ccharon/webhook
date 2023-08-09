@@ -41,7 +41,6 @@ mkdir -p /etc/webhook
     "host": "localhost",
     "port": 6080
   },
-  "user": "webhook",
   "token": "abcdefgh",
   "script": "/etc/webhook/deploy.sh"
 }
