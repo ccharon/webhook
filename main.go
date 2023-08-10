@@ -1,8 +1,7 @@
-/*
-Receive a post request (HookRequest), set the Values as Environment Variable and start a script.
-While the script is running other requests are ignored
-*/
 package main
+
+// Receive a post request (HookRequest), set the Values as Environment Variable and start a script.
+// While the script is running other requests are ignored
 
 import (
 	"errors"
