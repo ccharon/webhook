@@ -1,5 +1,7 @@
 package deploy
 
+// Deployment allow only one at a time. Requests that arrive while a deployment is running are discarded.
+
 import (
 	"log"
 	"os"
@@ -8,8 +10,6 @@ import (
 	"webhook/config"
 )
 
-// Deployment allow only one at a time. Requests that
-// arrive while a deployment is running are discarded.
 type Deployment struct {
 	configuration *config.Configuration
 	deployRunning atomic.Bool

@@ -2,9 +2,15 @@ package util
 
 import (
 	"encoding/json"
+	"io"
+)
+
+// fancy unmarshal of json data structures to have a more meaningful error if something goes wrong
+// also I tried to use generics on this the first time ...
+
+import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 )
 
@@ -31,16 +37,15 @@ func Unmarshal[T any](r io.Reader) (result T, err error) {
 		case errors.Is(err, io.EOF):
 			err = errors.New("data must not be empty")
 		default:
-			// keep the err we already got
+			// keep the error we already got
 		}
 
 		return result, err
 	}
 
-	// Call decode again, using a pointer to an empty anonymous struct as
-	// the destination. If the configuration only contained a single JSON
-	// object this will return an io.EOF error. So if we get anything else,
-	// we know that there is additional data in the request body.
+	// Call decode again, using a pointer to an empty anonymous struct as the destination. If the configuration only
+	// contained a single JSON object this will return an io.EOF error. So if we get anything else, we know that there
+	// is additional data in the request body.
 	err = dec.Decode(&struct{}{})
 	if !errors.Is(err, io.EOF) {
 		return result, errors.New("data must only contain a single JSON object")

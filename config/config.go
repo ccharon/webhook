@@ -1,13 +1,14 @@
 package config
 
+// Configuration reads config values from a file, it is an example of how to make properties available as read only.
+// This works for everything that is not in this package. Access is only possible via Exported Functions
+
 import (
 	"log"
 	"os"
 	"webhook/util"
 )
 
-// Configuration reads config values from a file, it is an example of how to make properties available as read only.
-// This works for everything that is not in this package. Access is only possible via Exported Functions
 type Configuration struct {
 	address string
 	port    int
