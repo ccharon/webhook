@@ -75,7 +75,7 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// token has to match the token stored in config.yml
+	// token has to match the token stored in config.json
 	if strings.TrimSpace(request.Token) != h.configuration.Token() {
 		writeError(w, "token does not match", http.StatusForbidden)
 		return
