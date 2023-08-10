@@ -1,10 +1,11 @@
-# Simple restapi to receive a postrequest and start a shell script 
+# Simple restapi to receive a post request and start a shell script 
 
 The idea is to start this restapi with a systemd service. 
 The api should bind to some port on localhost then a nginx config should be used to forward requests to the api.
-If publishing the api you should enforce https so that the token will be transferred encrypted
+If publishing the api you should enforce https so that the token will be transferred encrypted.
+All files listed here are also available in the _files folder in this repo.
 
-All files listed here are also available in the files folder in this repo.
+Also this is my first go project, if you happen to have suggestions do so! Maybe by using a pull request :P
 
 #### install go for your distribution
 ```bash
@@ -14,7 +15,7 @@ apt install golang
 
 #### clone this repo, build and copy executable
 ```bash
-git clone https://github.com/ccharon/webhook```
+git clone https://github.com/ccharon/webhook
 cd webhook
 go build .
 sudo cp webhook /usr/local/sbin/webhook
@@ -48,7 +49,7 @@ mkdir -p /etc/webhook
 
 #### set owner and strict access rights for config.json
 ```bash
-chown webhook:webhook  /etc/webhook/config.json
+chown webhook:webhook /etc/webhook/config.json
 chmod 600 /etc/webhook/config.json
 ```
 
@@ -70,9 +71,12 @@ fi
 
 exit 0
 ```
-#### make deploy.sh executable
+
+#### make executable, set owner and strict access rights for deploy.sh
 ```bash
-chmod +x /etc/webhook/deploy.sh
+chown webhook:webhook /etc/webhook/deploy.sh
+chmod 700 /etc/webhook/deploy.sh
+
 ```
 
 #### create /etc/systemd/system/webhook.service
