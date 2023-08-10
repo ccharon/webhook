@@ -1,5 +1,5 @@
 /*
-Receive a post request (Hook), set the Values as Environment Variable and start a script.
+Receive a post request (HookRequest), set the Values as Environment Variable and start a script.
 While the script is running other requests are ignored
 */
 package main
@@ -10,25 +10,28 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"webhook/config"
+	"webhook/deploy"
+	"webhook/hook"
 )
-
-var configuration Configuration
 
 func main() {
 	var configLocation string
 	flag.StringVar(&configLocation, "c", "/etc/webhook/config.json", "Provide config.json location")
 	flag.Parse()
 
-	var err error
-	configuration, err = readConfiguration(configLocation)
+	configuration, err := config.NewConfiguration(configLocation)
 	if err != nil {
 		log.Fatal(err)
 	}
+	deployment := deploy.NewDeployment(configuration)
+	handleFunc := hook.NewHook(configuration, deployment).HandleRequest
 
-	http.HandleFunc("/", handlePostRequest)
-	log.Printf("Starting server (%s:%d) \n", configuration.Server.Host, configuration.Server.Port)
+	http.HandleFunc("/", handleFunc)
+	http.NotFoundHandler()
+	log.Printf("Starting server (%s:%d) \n", configuration.Address(), configuration.Port())
 
-	err = http.ListenAndServe(configuration.Server.Host+":"+strconv.Itoa(configuration.Server.Port), nil)
+	err = http.ListenAndServe(configuration.Address()+":"+strconv.Itoa(configuration.Port()), nil)
 	if !errors.Is(err, http.ErrServerClosed) && err != nil {
 		log.Fatal(err)
 	}

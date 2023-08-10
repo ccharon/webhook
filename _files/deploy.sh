@@ -3,7 +3,7 @@
 echo "received deployment request ${DEPLOY_ID} for ${DEPLOY_IMAGE}"
 
 if [ "${DEPLOY_IMAGE}" == "ccharon/echoip" ] ; then
-        cd /path/to/docker/compose/echoip
+        cd /path/to/compose/echoip || exit 1
         docker compose stop
         docker compose rm -f
         docker pull ccharon/echoip:latest
