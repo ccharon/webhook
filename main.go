@@ -32,7 +32,7 @@ func main() {
 	log.Printf("Starting server (%s:%d) \n", configuration.Address(), configuration.Port())
 
 	err = http.ListenAndServe(configuration.Address()+":"+strconv.Itoa(configuration.Port()), nil)
-	if !errors.Is(err, http.ErrServerClosed) && err != nil {
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal(err)
 	}
 }
