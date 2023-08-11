@@ -25,7 +25,7 @@ install: build
 	[ -d $(DESTDIR)/etc/systemd/system ] \
 		&& cp ./_files/webhook.service $(DESTDIR)/etc/systemd/system/webhook.service \
 		&& chown root:root $(DESTDIR)/etc/systemd/system/webhook.service \
-		&& chmod 755 $(DESTDIR)/etc/systemd/system/webhook.service \
+		&& chmod 644 $(DESTDIR)/etc/systemd/system/webhook.service \
 		&& systemctl daemon-reload
 
 	[ -d $(DESTDIR)/etc/nginx/sites-available ] \
