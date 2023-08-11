@@ -49,7 +49,7 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	// only accept application/json content
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		writeError(w, "Content-Type header is not application/json", http.StatusUnsupportedMediaType)
+		writeError(w, "content-type header is not application/json", http.StatusUnsupportedMediaType)
 		return
 	}
 
@@ -82,12 +82,11 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// execute deployment
-	if h.deployment.Execute(request.Id, request.Image) {
-		writeInfo(w, "Starting Deployment!", http.StatusOK)
-	} else {
-		writeWarning(w, "Deployment already in progress!", http.StatusTooManyRequests)
+	if !h.deployment.Execute(request.Id, request.Image) {
+		writeWarning(w, "deployment already in progress", http.StatusTooManyRequests)
+		return
 	}
-
+	writeInfo(w, "starting Deployment", http.StatusOK)
 	return
 }
 
