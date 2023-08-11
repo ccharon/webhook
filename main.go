@@ -14,6 +14,11 @@ import (
 	"webhook/hook"
 )
 
+func init() {
+	// when running as systemd service, timestamp and service name are automatically added as prefix
+	log.SetFlags(log.Lshortfile)
+}
+
 func main() {
 	var configLocation string
 	flag.StringVar(&configLocation, "c", "/etc/webhook/config.json", "Provide config.json location")
