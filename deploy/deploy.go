@@ -39,7 +39,8 @@ func (d *Deployment) runScript(id string, image string) {
 	)
 	cmd.Stdout = os.Stdout
 
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if err != nil {
 		log.Println("command execution failed: ", err)
 	}
 

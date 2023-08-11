@@ -37,7 +37,7 @@ func NewConfiguration(configLocation string) (configuration *Configuration, err 
 	defer func(configFile *os.File) {
 		err := configFile.Close()
 		if err != nil {
-			log.Println("Configfile could not be closed")
+			log.Println("config file could not be closed: ", err)
 		}
 	}(configFile)
 
@@ -46,6 +46,7 @@ func NewConfiguration(configLocation string) (configuration *Configuration, err 
 	if err != nil {
 		return nil, err
 	}
+
 	c := Configuration{
 		address: cfg.Server.Host,
 		port:    cfg.Server.Port,

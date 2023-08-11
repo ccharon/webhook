@@ -26,17 +26,17 @@ func main() {
 
 	configuration, err := config.NewConfiguration(configLocation)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("configuration could not be read: ", err)
 	}
 	deployment := deploy.NewDeployment(configuration)
 	handleFunc := hook.NewHook(configuration, deployment).HandleRequest
 
 	http.HandleFunc("/", handleFunc)
 	http.NotFoundHandler()
-	log.Printf("Starting server (%s:%d) \n", configuration.Address(), configuration.Port())
+	log.Printf("starting server (%s:%d) \n", configuration.Address(), configuration.Port())
 
 	err = http.ListenAndServe(configuration.Address()+":"+strconv.Itoa(configuration.Port()), nil)
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal(err)
+		log.Fatal("server exited unexpected: ", err)
 	}
 }

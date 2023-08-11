@@ -59,9 +59,9 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err.Error() == "http: request body too large" {
 			writeError(w, "data must not be larger than 1MB", http.StatusRequestEntityTooLarge)
-		} else {
-			writeError(w, err.Error(), http.StatusBadRequest)
+			return
 		}
+		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -104,16 +104,13 @@ func writeInfo(w http.ResponseWriter, msg string, httpStatus int) {
 }
 
 func writeResponse(w http.ResponseWriter, status string, msg string, httpStatus int) {
-	log.Println(msg)
+	log.Println("sending response: ", msg)
 
-	response := response{
-		Status:  status,
-		Message: msg,
-	}
+	response := response{Status: status, Message: msg}
 
 	b, err := json.Marshal(response)
 	if err != nil {
-		log.Println("Error writing response")
+		log.Println("failed to create response: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -123,7 +120,7 @@ func writeResponse(w http.ResponseWriter, status string, msg string, httpStatus 
 
 	_, err = w.Write(b)
 	if err != nil {
-		log.Println("Error writing response")
+		log.Println("failed to write response: ", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

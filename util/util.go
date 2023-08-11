@@ -8,9 +8,7 @@ import (
 	"strings"
 )
 
-// fancy unmarshal of json data structures to have a more meaningful error if something goes wrong
-// also I tried to use generics on this the first time ...
-
+// Unmarshal of json data structures in a verbose way to have a more meaningful error if something goes wrong
 func Unmarshal[T any](r io.Reader) (result T, err error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()
