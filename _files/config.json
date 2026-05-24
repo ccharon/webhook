@@ -3,6 +3,8 @@
     "host": "localhost",
     "port": 6080
   },
-  "token": "abcdefgh",
-  "script": "/etc/webhook/deploy.sh"
+  "token": "REPLACE_WITH_SECRET_MIN_32_CHARS",
+  "script": "/etc/webhook/deploy.sh",
+  "timeout": 300,
+  "param_max_length": 64
 }

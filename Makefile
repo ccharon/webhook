@@ -26,7 +26,9 @@ install: build
 		&& cp ./_files/webhook.service $(DESTDIR)/etc/systemd/system/webhook.service \
 		&& chown root:root $(DESTDIR)/etc/systemd/system/webhook.service \
 		&& chmod 644 $(DESTDIR)/etc/systemd/system/webhook.service \
-		&& systemctl daemon-reload
+		&& systemctl daemon-reload \
+		&& systemctl enable webhook \
+		&& systemctl restart webhook
 
 	[ -d $(DESTDIR)/etc/nginx/sites-available ] \
 		&& cp ./_files/webhook.mysite.com $(DESTDIR)/etc/nginx/sites-available/webhook.mysite.com \
@@ -38,7 +40,7 @@ uninstall:
 
 	[ -f $(DESTDIR)/usr/local/sbin/webhook ] && rm $(DESTDIR)/usr/local/sbin/webhook
 
-	[ -f $(DESTDIR)/etc/systemd/system/webhook.service ] systemctl stop webhook \
+	[ -f $(DESTDIR)/etc/systemd/system/webhook.service ] && systemctl stop webhook \
 		&& systemctl disable webhook \
 		&& rm $(DESTDIR)/etc/systemd/system/webhook.service \
 		&& systemctl daemon-reload

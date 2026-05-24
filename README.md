@@ -1,164 +1,103 @@
-# Simple restapi to receive a post request and start a shell script 
+# webhook
 
-The idea is to start this restapi with a systemd service. 
-The api should bind to some port on localhost then a nginx config should be used to forward requests to the api.
-If publishing the api you should enforce https so that the token will be transferred encrypted.
-All files listed here are also available in the _files folder in this repo.
+Minimal HTTP server that receives a signed POST request and runs a configured shell script.
+Intended to run as a systemd service on Linux, fronted by nginx for TLS termination.
 
-Also this is my first go project, if you happen to have suggestions do so! Maybe by using a pull request :P
+Authentication uses HMAC-SHA256 over the raw request body — the same mechanism as GitHub webhooks.
+The caller signs the body with a shared secret and sends the result in the `X-Hub-Signature-256` header.
+The body includes a Unix timestamp, which closes replay attacks within a ±30 second window.
 
-#### install go for your distribution
-```bash
-#debian
-apt install golang
-```
+## Install
 
-#### clone this repo, build and copy executable
+Requires Go and root.
 ```bash
 git clone https://github.com/ccharon/webhook
 cd webhook
-go build .
-sudo cp webhook /usr/local/sbin/webhook
+sudo make install
 ```
 
-as root execute the following statements and put files in place
+This builds the binary, creates the `webhook` system user (added to the `docker` group),
+installs config and scripts under `/etc/webhook/`, installs and starts the systemd service,
+and copies the nginx config to `sites-available/`.
 
-#### create user and config directory
+### Required steps after install
+
+**1. Set a strong token**
+
+The installed `/etc/webhook/config.json` contains a placeholder token that must be replaced
+before the service will start. Generate a secret and edit the file:
+
 ```bash
-# create the user that the service will run with
-adduser webhook --group --system
-
-# i want to control docker deployments, so the user has to be in the docker group
-usermod -a -G docker webhook
-
-# prepare config dir
-mkdir -p /etc/webhook
+openssl rand -base64 32
+nano /etc/webhook/config.json
+systemctl restart webhook
 ```
 
-#### create /etc/webhook/config.json
+**2. Adapt the deploy script**
+
+`/etc/webhook/deploy.sh` is a template. Add your actual deployment logic there.
+The script receives `WEBHOOK_ID` and `WEBHOOK_PARAM` as environment variables.
+
+**3. Finish nginx setup**
+
+Edit the nginx config to match your domain and certificate paths, then activate it:
+
+```bash
+nano /etc/nginx/sites-available/webhook.mysite.com
+ln -s /etc/nginx/sites-available/webhook.mysite.com /etc/nginx/sites-enabled/
+nginx -t && systemctl restart nginx
+```
+
+## Configuration
+
+`/etc/webhook/config.json`:
 ```json
 {
-  "server": {
-    "host": "localhost",
-    "port": 6080
-  },
-  "token": "abcdefgh",
-  "script": "/etc/webhook/deploy.sh"
+  "server": { "host": "localhost", "port": 6080 },
+  "token": "your-secret-min-32-chars",
+  "script": "/etc/webhook/deploy.sh",
+  "timeout": 300,
+  "param_max_length": 64
 }
 ```
 
-#### set owner and strict access rights for config.json
+| Field | Description |
+|---|---|
+| `token` | HMAC-SHA256 secret shared with callers. Minimum 32 characters. |
+| `timeout` | Seconds before the script is killed. Default: 300. |
+| `param_max_length` | Maximum length of the `param` field in bytes. Default: 64, range 1–65536. |
+
+## Request format
+
+`id` accepts `[a-zA-Z0-9_-]`, max 36 characters.
+`param` accepts `[a-zA-Z0-9_.-]`, max `param_max_length` characters.
+
 ```bash
-chown webhook:webhook /etc/webhook/config.json
-chmod 600 /etc/webhook/config.json
+BODY="{\"id\": \"deploy-1\", \"param\": \"v1.2.3\", \"unix_seconds\": $(date +%s)}"
+SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "your-secret" | awk '{print $NF}')"
+curl -X POST https://webhook.mysite.com \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: $SIG" \
+  -d "$BODY"
 ```
 
-#### create /etc/webhook/deploy.sh
-```bash
-#!/usr/bin/env bash
+## GitHub Actions example
 
-echo "received deployment request ${DEPLOY_ID} for ${DEPLOY_IMAGE}"
-
-if [ "${DEPLOY_IMAGE}" == "ccharon/echoip" ] ; then
-        cd /path/to/docker/compose/echoip
-        docker compose stop
-        docker compose rm -f
-        docker pull ccharon/echoip:latest
-        docker compose up -d
-
-        echo "Done deploying ${DEPLOY_IMAGE}"
-fi
-
-exit 0
-```
-
-#### make executable, set owner and strict access rights for deploy.sh
-```bash
-chown webhook:webhook /etc/webhook/deploy.sh
-chmod 700 /etc/webhook/deploy.sh
-
-```
-
-#### create /etc/systemd/system/webhook.service
-```ini
-[Unit]
-Description=webhook service
-After=network.target
-StartLimitIntervalSec=0
-
-[Service]
-Type=simple
-Restart=always
-RestartSec=1
-User=webhook
-ExecStart=/usr/local/sbin/webhook -c /etc/webhook/config.json
-
-[Install]
-WantedBy=multi-user.target
-```
-
-#### refresh systemd and start service
-```bash
-systemctl daemon-reload
-systemctl start webhook
-
-# later enable at system startup
-#systemctl enable webhook
-```
-
-#### create nginx /etc/nginx/sites-available/webhook.mysite.com
-```
-map $http_upgrade $connection_upgrade {
-  default upgrade;
-  '' close;
-}
-
-upstream webhook {
-    server localhost:6080;
-}
-
-server {
-    listen 443 ssl;
-    server_name webhook.mysite.com;
-
-    location / {
-        proxy_pass  http://webhook;
-    }
-
-    ssl_certificate /etc/letsencrypt/live/mysite.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mysite.com/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
-}
-
-server {
-    listen 80;
-    server_name webhook.mysite.com;
-
-    if ($host = webhook.mysite.com) {
-        return 308 https://$host$request_uri;
-    }
-
-    return 404;
-}
-```
-
-#### activate and test config, restart nginx
-```bash
-ln -s /etc/nginx/sites-available/webhook.mysite.com /etc/nginx/sites-enabled/
-nginx -t 
-systemctl restart nginx
-```
-
-#### curl test call
-```bash
-curl -X POST https://webhook.mysite.com -H "Content-Type: application/json" -d '{"id": "44444", "image": "ccharon/echoip", "token": "abcdefgh"}'
-```
-
-### Example Usage in github actions pipeline
-see whole [pipeline](https://github.com/ccharon/echoip/blob/master/.github/workflows/ci.yml)
 ```yaml
-      - name: Trigger deployment
-        run: |
-          curl -X POST ${{ secrets.WEBHOOK_URL }} -H "Content-Type: application/json" -d '{"id": "${{ github.run_id }}", "image": "${{ env.DOCKER_IMAGE }}", "token": "${{ secrets.WEBHOOK_TOKEN }}"}'
+- name: Trigger deployment
+  run: |
+    BODY="{\"id\": \"${{ github.run_id }}\", \"param\": \"${{ github.ref_name }}\", \"unix_seconds\": $(date +%s)}"
+    SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "${{ secrets.WEBHOOK_TOKEN }}" | awk '{print $NF}')"
+    curl -X POST ${{ secrets.WEBHOOK_URL }} \
+      -H "Content-Type: application/json" \
+      -H "X-Hub-Signature-256: $SIG" \
+      -d "$BODY"
+```
+
+## Local development
+
+```bash
+./test/start_server.sh        # builds and starts server on localhost:6080
+./test/send_request.sh        # sends a signed test request
+./test/send_request.sh my-id v1.0.0   # with explicit id and param
 ```

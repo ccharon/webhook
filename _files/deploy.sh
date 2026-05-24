@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# SPDX-FileCopyrightText: 2023 Christian Charon
 
-echo "received deployment request ${DEPLOY_ID} for ${DEPLOY_IMAGE}"
+echo "received deployment request ${WEBHOOK_ID} for ${WEBHOOK_PARAM}"
 
-if [ "${DEPLOY_IMAGE}" == "ccharon/echoip" ] ; then
+if [ "${WEBHOOK_PARAM}" == "ccharon/echoip" ] ; then
         cd /path/to/compose/echoip || exit 1
         docker compose stop
         docker compose rm -f
         docker pull ccharon/echoip:latest
         docker compose up -d
 
-        echo "Done deploying ${DEPLOY_IMAGE}"
+        echo "Done deploying ${WEBHOOK_PARAM}"
 fi
 
 exit 0

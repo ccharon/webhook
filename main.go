@@ -1,7 +1,10 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: 2023 Christian Charon
+
 package main
 
-// Receive a post request (HookRequest), set the Values as Environment Variable and start a script.
-// While the script is running other requests are ignored
+// Entry point. Reads configuration, wires up the HTTP handler and starts the server.
+// Intended to run as a systemd service, fronted by nginx which handles TLS termination.
 
 import (
 	"errors"
@@ -9,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 	"webhook/config"
 	"webhook/deploy"
 	"webhook/hook"
@@ -31,11 +35,19 @@ func main() {
 	deployment := deploy.NewDeployment(configuration)
 	handleFunc := hook.NewHook(configuration, deployment).HandleRequest
 
-	http.HandleFunc("/", handleFunc)
-	http.NotFoundHandler()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleFunc)
 	log.Printf("starting server (%s:%d) \n", configuration.Address(), configuration.Port())
 
-	err = http.ListenAndServe(configuration.Address()+":"+strconv.Itoa(configuration.Port()), nil)
+	// explicit timeouts prevent slow clients from holding connections open indefinitely
+	server := &http.Server{
+		Addr:              configuration.Address() + ":" + strconv.Itoa(configuration.Port()),
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+	}
+	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatal("server exited unexpected: ", err)
 	}

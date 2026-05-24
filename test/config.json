@@ -3,6 +3,7 @@
     "host": "localhost",
     "port": 6080
   },
-  "token": "abcdefgh",
-  "script": "./test/deploy.sh"
+  "token": "this-is-a-local-dev-token-not-for-prod",
+  "script": "./test/deploy.sh",
+  "timeout": 300
 }

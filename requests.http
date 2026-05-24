@@ -1,35 +1,42 @@
+# Compute signature (bash):
+# BODY='{"id":"44444","param":"ccharon/echoip","unix_seconds":1234567890}'
+# SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "abcdefgh" | awk '{print $NF}')"
+
+### GET — should return 405
 GET http://localhost:6080
 Accept: application/json
 
-###
+### POST without signature header — should return 403
 POST http://localhost:6080/
 Content-Type: application/json
 
 {
   "id": "44444",
-  "image": "ccharon/echoip"
+  "param": "ccharon/echoip",
+  "unix_seconds": 1234567890
 }
 
-###
+### POST with wrong signature — should return 403
 POST http://localhost:6080/
 Content-Type: application/json
+X-Hub-Signature-256: sha256=0000000000000000000000000000000000000000000000000000000000000000
 
 {
   "id": "44444",
-  "image": "ccharon/echoip",
-  "token": "abcdefgh"
+  "param": "ccharon/echoip",
+  "unix_seconds": 1234567890
 }
 
-###
-
+### POST with unknown field — should return 400
 POST http://localhost:6080/
 Content-Type: application/json
+X-Hub-Signature-256: sha256=<compute-from-body>
 
 {
   "id": "44444",
-  "image": "ccharon/echoip",
-  "token": "abcdefgh",
-  "aa": "wupi"
+  "param": "ccharon/echoip",
+  "unix_seconds": 1234567890,
+  "extra": "field"
 }
 
 ###
