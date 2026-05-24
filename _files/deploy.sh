@@ -21,10 +21,25 @@ if [ "${WEBHOOK_PARAM}" == "soundboard" ] ; then
         TMPDIR=$(mktemp -d)
         trap 'rm -rf "$TMPDIR"' EXIT
         
-        curl -sL https://github.com/ccharon/soundboard/archive/refs/heads/dist.tar.gz \
+        curl -sL https://github.com/ccharon/website-soundboard/archive/refs/heads/dist.tar.gz \
                 | tar -xz -C "$TMPDIR" --strip-components=1
         
         rsync -a --delete --chmod=D755,F644 "$TMPDIR/" /var/www/sound.erdferkel.eu/
+        
+        echo "Done deploying soundboard"
+fi
+
+if [ "${WEBHOOK_PARAM}" == "qsensors" ] ; then
+        # before first qsensors deploy webhook has to be allowed to write the target
+        # one time manually run: 'chown -R webhook:webhook /var/www/qsensors.erdferkel.eu'
+        
+        TMPDIR=$(mktemp -d)
+        trap 'rm -rf "$TMPDIR"' EXIT
+        
+        curl -sL https://github.com/ccharon/website-qsensors/archive/refs/heads/dist.tar.gz \
+                | tar -xz -C "$TMPDIR" --strip-components=1
+        
+        rsync -a --delete --chmod=D755,F644 "$TMPDIR/" /var/www/qsensors.erdferkel.eu/
         
         echo "Done deploying soundboard"
 fi
