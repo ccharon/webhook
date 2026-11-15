@@ -1,33 +1,49 @@
-# Compute signature (bash):
-# BODY='{"id":"44444","param":"ccharon/echoip","unix_seconds":1234567890}'
-# SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "abcdefgh" | awk '{print $NF}')"
+# Requests against the local dev server (./test/start_server.sh).
+# Dev token from test/config.json: this-is-a-local-dev-token-not-for-prod
+#
+# Compute a signature (bash):
+# BODY="{\"id\":\"44444\",\"param\":\"soundboard\",\"unix_seconds\":$(date +%s)}"
+# SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "this-is-a-local-dev-token-not-for-prod" | awk '{print $NF}')"
+# Or simply use ./test/send_request.sh [id] [param]
 
-### GET — should return 405
+### GET - should return 405
 GET http://localhost:6080
 Accept: application/json
 
-### POST without signature header — should return 403
+### POST without signature header - should return 403
 POST http://localhost:6080/
 Content-Type: application/json
 
 {
   "id": "44444",
-  "param": "ccharon/echoip",
+  "param": "soundboard",
   "unix_seconds": 1234567890
 }
 
-### POST with wrong signature — should return 403
+### POST with wrong signature - should return 403
 POST http://localhost:6080/
 Content-Type: application/json
 X-Hub-Signature-256: sha256=0000000000000000000000000000000000000000000000000000000000000000
 
 {
   "id": "44444",
-  "param": "ccharon/echoip",
+  "param": "soundboard",
   "unix_seconds": 1234567890
 }
 
-### POST with unknown field — should return 400
+### POST with unknown field - should return 400 (with a valid signature for this exact body)
+POST http://localhost:6080/
+Content-Type: application/json
+X-Hub-Signature-256: sha256=<compute-from-body>
+
+{
+  "id": "44444",
+  "param": "soundboard",
+  "unix_seconds": 1234567890,
+  "extra": "field"
+}
+
+### POST with a slash in param - should return 400 (only [a-zA-Z0-9_.-] is allowed)
 POST http://localhost:6080/
 Content-Type: application/json
 X-Hub-Signature-256: sha256=<compute-from-body>
@@ -35,8 +51,19 @@ X-Hub-Signature-256: sha256=<compute-from-body>
 {
   "id": "44444",
   "param": "ccharon/echoip",
-  "unix_seconds": 1234567890,
-  "extra": "field"
+  "unix_seconds": 1234567890
 }
 
-###
+### Replay - the first request returns 200, sending byte-identical body and signature
+### again within the time window returns 403 "request was already processed".
+### Send the request below twice with a freshly computed unix_seconds and signature
+### (a retry needs a new unix_seconds):
+POST http://localhost:6080/
+Content-Type: application/json
+X-Hub-Signature-256: sha256=<compute-from-body>
+
+{
+  "id": "44444",
+  "param": "soundboard",
+  "unix_seconds": <current unix time>
+}

@@ -6,6 +6,7 @@ upstream webhook {
 
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;
     server_name webhook.mysite.com;
 
     ssl_certificate /etc/letsencrypt/live/mysite.com/fullchain.pem;
@@ -13,9 +14,15 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
+    # matches the request body limit of the server
+    client_max_body_size 1m;
+
     location / {
         limit_req zone=webhook burst=2 nodelay;
         limit_req_status 429;
+
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 30s;
 
         proxy_pass http://webhook;
         proxy_set_header Host $host;
@@ -27,6 +34,7 @@ server {
 
 server {
     listen 80;
+    listen [::]:80;
     server_name webhook.mysite.com;
     return 308 https://$host$request_uri;
 }

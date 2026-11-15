@@ -1,14 +1,35 @@
 [Unit]
 Description=webhook service
-After=network.target
-StartLimitIntervalSec=0
+After=network-online.target
+Wants=network-online.target
+# give up after 5 failed starts within 60s (e.g. invalid config) instead of looping forever
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
-Restart=always
-RestartSec=1
 User=webhook
 ExecStart=/usr/local/sbin/webhook -c /etc/webhook/config.json
+Restart=on-failure
+RestartSec=5
+
+# The server finishes a running deployment for up to 60s after SIGTERM.
+# mixed: SIGTERM only to the main process, SIGKILL to the rest if it is still around at the timeout.
+KillMode=mixed
+TimeoutStopSec=90
+
+# Hardening. Deliberately conservative: the deploy script needs the docker socket,
+# write access to /var/www and a private /tmp.
+NoNewPrivileges=yes
+PrivateTmp=yes
+# read-only /usr, /boot and /etc; /var/www stays writable
+ProtectSystem=full
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
 
 [Install]
 WantedBy=multi-user.target
