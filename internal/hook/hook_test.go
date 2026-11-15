@@ -8,11 +8,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,21 +22,26 @@ import (
 	"github.com/ccharon/webhook/internal/hook"
 )
 
-// mockExecutor simulates an Executor whose availability is controlled by the test.
+// mockExecutor simulates an Executor whose availability is controlled by the test
+// and counts how often it was asked to execute.
 type mockExecutor struct {
-	busy bool
+	busy  bool
+	calls atomic.Int32
 }
 
 func (m *mockExecutor) Execute(id, param string) bool {
+	m.calls.Add(1)
 	return !m.busy
 }
+
+const testSecret = "test-secret-for-hook-tests-32-chars!"
 
 // newTestConfig writes a minimal config file to a temp directory and loads it.
 func newTestConfig(t *testing.T) *config.Configuration {
 	t.Helper()
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.json")
-	content := `{"server":{"host":"localhost","port":6080},"token":"test-secret-for-hook-tests-32-chars!","script":"/bin/true"}`
+	content := `{"server":{"host":"localhost","port":6080},"token":"` + testSecret + `","script":"/bin/true"}`
 	if err := os.WriteFile(cfgPath, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +71,7 @@ func validBody() string {
 func TestHandleRequest(t *testing.T) {
 	cfg := newTestConfig(t)
 
-	const secret = "test-secret-for-hook-tests-32-chars!"
+	const secret = testSecret
 	// sentinel: use in signature field to send no X-Hub-Signature-256 header
 	const noHeader = "NONE"
 
@@ -218,6 +225,81 @@ func TestHandleRequest(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			name:           "wrong content-type with json prefix",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/jsonfoo",
+			body:           validBody(),
+			expectedStatus: http.StatusUnsupportedMediaType,
+		},
+		{
+			name:           "missing content-type",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "",
+			body:           validBody(),
+			expectedStatus: http.StatusUnsupportedMediaType,
+		},
+		{
+			name:           "malformed content-type",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json; =",
+			body:           validBody(),
+			expectedStatus: http.StatusUnsupportedMediaType,
+		},
+		{
+			name:           "content-type with charset",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json; charset=utf-8",
+			body:           validBody(),
+			expectedStatus: http.StatusOK,
+		},
+		{
+			// media types are case-insensitive
+			name:           "content-type upper case",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "Application/JSON",
+			body:           validBody(),
+			expectedStatus: http.StatusOK,
+		},
+		{
+			name:           "negative timestamp",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json",
+			body:           `{"id":"1","param":"x","unix_seconds":-1}`,
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			// now - ts would overflow int64 here
+			name:           "timestamp MinInt64",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json",
+			body:           fmt.Sprintf(`{"id":"1","param":"x","unix_seconds":%d}`, int64(math.MinInt64)),
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "timestamp MaxInt64",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json",
+			body:           fmt.Sprintf(`{"id":"1","param":"x","unix_seconds":%d}`, int64(math.MaxInt64)),
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			// does not fit into int64 at all — rejected by the JSON decoder
+			name:           "timestamp beyond int64",
+			method:         http.MethodPost,
+			path:           "/",
+			contentType:    "application/json",
+			body:           `{"id":"1","param":"x","unix_seconds":9223372036854775808}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
 			name:           "valid request executor free",
 			method:         http.MethodPost,
 			path:           "/",
@@ -255,6 +337,9 @@ func TestHandleRequest(t *testing.T) {
 			h.HandleRequest(w, req)
 			if w.Code != tt.expectedStatus {
 				t.Errorf("status: got %d, want %d (body: %s)", w.Code, tt.expectedStatus, w.Body.String())
+			}
+			if w.Code == http.StatusMethodNotAllowed && w.Header().Get("Allow") != http.MethodPost {
+				t.Errorf("Allow header: got %q, want %q", w.Header().Get("Allow"), http.MethodPost)
 			}
 		})
 	}
