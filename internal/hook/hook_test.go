@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"webhook/config"
-	"webhook/hook"
+	"github.com/ccharon/webhook/internal/config"
+	"github.com/ccharon/webhook/internal/hook"
 )
 
 // mockExecutor simulates an Executor whose availability is controlled by the test.

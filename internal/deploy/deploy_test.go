@@ -13,24 +13,26 @@ import (
 	"testing"
 	"time"
 
-	"webhook/config"
+	"github.com/ccharon/webhook/internal/config"
 )
 
-// newTestDeployment writes scriptContent to a temp script file, creates a matching
-// config, and returns a ready-to-use Deployment. The script path is also returned
-// for tests that need to reference it directly.
-func newTestDeployment(t *testing.T, scriptContent string) (*Deployment, string) {
+const testToken = "test-token-min-32-chars-for-tests"
+
+// newTestDeploymentTimeout writes scriptContent to a temp script file, creates a
+// matching config (timeoutSecs 0 means default) and returns a ready-to-use Deployment.
+func newTestDeploymentTimeout(t *testing.T, scriptContent string, timeoutSecs int) *Deployment {
 	t.Helper()
 	dir := t.TempDir()
 
 	scriptPath := filepath.Join(dir, "deploy.sh")
-	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0700); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(scriptContent), 0o700); err != nil {
 		t.Fatal(err)
 	}
 
 	cfgPath := filepath.Join(dir, "config.json")
-	cfgContent := fmt.Sprintf(`{"server":{"host":"localhost","port":6080},"token":"x","script":%q}`, scriptPath)
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0600); err != nil {
+	cfgContent := fmt.Sprintf(`{"server":{"host":"localhost","port":6080},"token":%q,"script":%q,"timeout":%d}`,
+		testToken, scriptPath, timeoutSecs)
+	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -38,7 +40,12 @@ func newTestDeployment(t *testing.T, scriptContent string) (*Deployment, string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewDeployment(cfg), scriptPath
+	return NewDeployment(cfg)
+}
+
+func newTestDeployment(t *testing.T, scriptContent string) *Deployment {
+	t.Helper()
+	return newTestDeploymentTimeout(t, scriptContent, 0)
 }
 
 // waitForIdle polls deployRunning until it becomes false or the timeout expires.
@@ -54,7 +61,7 @@ func waitForIdle(d *Deployment, timeout time.Duration) bool {
 // TestExecuteWhenIdle verifies that Execute returns true and starts the script
 // when no deployment is currently running.
 func TestExecuteWhenIdle(t *testing.T) {
-	d, _ := newTestDeployment(t, "#!/bin/sh\nexit 0\n")
+	d := newTestDeployment(t, "#!/bin/sh\nexit 0\n")
 	if !d.Execute("id1", "param1") {
 		t.Error("Execute should return true when idle")
 	}
@@ -64,7 +71,7 @@ func TestExecuteWhenIdle(t *testing.T) {
 // is already in progress. deployRunning is set directly to simulate a running deployment
 // without needing a long-lived script.
 func TestExecuteWhenRunning(t *testing.T) {
-	d, _ := newTestDeployment(t, "#!/bin/sh\nsleep 5\n")
+	d := newTestDeployment(t, "#!/bin/sh\nsleep 5\n")
 	d.deployRunning.Store(true)
 	if d.Execute("id1", "param1") {
 		t.Error("Execute should return false when already running")
@@ -79,7 +86,7 @@ func TestExecuteEnvVars(t *testing.T) {
 		"echo \"$WEBHOOK_ID\" > " + outFile + "\n" +
 		"echo \"$WEBHOOK_PARAM\" >> " + outFile + "\n"
 
-	d, _ := newTestDeployment(t, script)
+	d := newTestDeployment(t, script)
 	if !d.Execute("test-id", "test-param") {
 		t.Fatal("Execute returned false unexpectedly")
 	}
@@ -104,24 +111,7 @@ func TestExecuteEnvVars(t *testing.T) {
 // TestExecuteScriptTimeout verifies that a script running beyond the configured
 // timeout is killed and that deployRunning is reset to false afterwards.
 func TestExecuteScriptTimeout(t *testing.T) {
-	dir := t.TempDir()
-
-	scriptPath := filepath.Join(dir, "slow.sh")
-	if err := os.WriteFile(scriptPath, []byte("#!/bin/sh\nsleep 60\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
-
-	cfgPath := filepath.Join(dir, "config.json")
-	cfgContent := fmt.Sprintf(`{"server":{"host":"localhost","port":6080},"token":"x","script":%q,"timeout":1}`, scriptPath)
-	if err := os.WriteFile(cfgPath, []byte(cfgContent), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg, err := config.NewConfiguration(cfgPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	d := NewDeployment(cfg)
+	d := newTestDeploymentTimeout(t, "#!/bin/sh\nsleep 60\n", 1)
 
 	if !d.Execute("id", "param") {
 		t.Fatal("Execute returned false unexpectedly")
@@ -136,7 +126,7 @@ func TestExecuteScriptTimeout(t *testing.T) {
 // TestExecuteConcurrentOnlyOneStarts verifies the atomicity of the deployment lock:
 // when many goroutines call Execute simultaneously, exactly one must succeed.
 func TestExecuteConcurrentOnlyOneStarts(t *testing.T) {
-	d, _ := newTestDeployment(t, "#!/bin/sh\nsleep 1\n")
+	d := newTestDeployment(t, "#!/bin/sh\nsleep 1\n")
 
 	const goroutines = 50
 	results := make([]bool, goroutines)

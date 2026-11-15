@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2023 Christian Charon
 
-package hook
-
 // Package hook validates incoming HTTP requests and dispatches them to an Executor.
 // Authentication uses HMAC-SHA256 over the raw request body, the same mechanism
 // as GitHub webhooks: the caller signs the body with the shared secret and sends
@@ -10,6 +8,7 @@ package hook
 // never travels over the wire, and because the body contains the timestamp every
 // signature is unique — combining HMAC verification with the timestamp window
 // closes both forgery and replay attack vectors.
+package hook
 
 import (
 	"bytes"
@@ -19,14 +18,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ccharon/webhook/internal/config"
+	"github.com/ccharon/webhook/internal/jsonx"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
-	"webhook/config"
-	"webhook/util"
 )
 
 const (
@@ -61,7 +60,7 @@ func NewHook(configuration *config.Configuration, executor Executor) *Hook {
 type UnixSeconds int64
 
 type request struct {
-	Id          string      `json:"id"`
+	ID          string      `json:"id"`
 	Param       string      `json:"param"`
 	UnixSeconds UnixSeconds `json:"unix_seconds"`
 }
@@ -74,11 +73,11 @@ type response struct {
 // VerifySignature checks that header equals "sha256=HMAC-SHA256(secret, body)".
 // hmac.Equal provides constant-time comparison to prevent timing attacks.
 func VerifySignature(body []byte, header string, secret string) bool {
-	const prefix = "sha256="
-	if !strings.HasPrefix(header, prefix) {
+	sig, ok := strings.CutPrefix(header, "sha256=")
+	if !ok {
 		return false
 	}
-	got, err := hex.DecodeString(strings.TrimPrefix(header, prefix))
+	got, err := hex.DecodeString(sig)
 	if err != nil {
 		return false
 	}
@@ -123,21 +122,21 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	request, err := util.Unmarshal[request](bytes.NewReader(body))
+	request, err := jsonx.Unmarshal[request](bytes.NewReader(body))
 	if err != nil {
 		writeError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if len(strings.TrimSpace(request.Id)) == 0 {
+	if request.ID == "" {
 		writeError(w, "id must not be empty", http.StatusBadRequest)
 		return
 	}
-	if !idPattern.MatchString(request.Id) {
+	if !idPattern.MatchString(request.ID) {
 		writeError(w, "id contains invalid characters or exceeds 36 characters", http.StatusBadRequest)
 		return
 	}
-	if len(strings.TrimSpace(request.Param)) == 0 {
+	if request.Param == "" {
 		writeError(w, "param must not be empty", http.StatusBadRequest)
 		return
 	}
@@ -159,14 +158,13 @@ func (h *Hook) HandleRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if !h.executor.Execute(request.Id, request.Param) {
-		log.Printf("deployment already in progress, request dropped id=%q param=%q", request.Id, request.Param)
+	if !h.executor.Execute(request.ID, request.Param) {
+		slog.Warn("deployment already in progress, request dropped", "id", request.ID, "param", request.Param)
 		writeWarning(w, "deployment already in progress", http.StatusTooManyRequests)
 		return
 	}
-	log.Printf("deployment triggered id=%q param=%q", request.Id, request.Param)
+	slog.Info("deployment triggered", "id", request.ID, "param", request.Param)
 	writeInfo(w, "starting deployment", http.StatusOK)
-	return
 }
 
 func writeError(w http.ResponseWriter, msg string, httpStatus int) {
@@ -182,26 +180,26 @@ func writeInfo(w http.ResponseWriter, msg string, httpStatus int) {
 }
 
 func writeResponse(w http.ResponseWriter, status string, msg string, httpStatus int) {
-	log.Println("sending response: ", msg)
+	slog.Info("sending response", "status", httpStatus, "message", msg)
 
 	response := response{Status: status, Message: msg}
 
 	b, err := json.Marshal(response)
 	if err != nil {
-		log.Println("failed to create response: ", err)
+		slog.Error("failed to create response", "err", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	// header must be set before WriteHeader; once WriteHeader is called the header is frozen
-	w.Header().Add("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
 
 	_, err = w.Write(b)
 	if err != nil {
 		// WriteHeader was already called above — calling it again would be a no-op.
 		// Log the failure; the connection is likely broken at this point.
-		log.Println("failed to write response: ", err)
+		slog.Error("failed to write response", "err", err)
 		return
 	}
 }

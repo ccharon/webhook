@@ -10,7 +10,7 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"webhook/hook"
+	"github.com/ccharon/webhook/internal/hook"
 )
 
 func sign(body, secret string) string {

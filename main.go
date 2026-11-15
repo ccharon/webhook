@@ -1,47 +1,57 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2023 Christian Charon
 
-package main
-
-// Entry point. Reads configuration, wires up the HTTP handler and starts the server.
+// Command webhook reads configuration, wires up the HTTP handler and starts the server.
 // Intended to run as a systemd service, fronted by nginx which handles TLS termination.
+package main
 
 import (
 	"errors"
 	"flag"
-	"log"
+	"log/slog"
+	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
-	"webhook/config"
-	"webhook/deploy"
-	"webhook/hook"
+
+	"github.com/ccharon/webhook/internal/config"
+	"github.com/ccharon/webhook/internal/deploy"
+	"github.com/ccharon/webhook/internal/hook"
 )
 
-func init() {
-	// when running as systemd service, timestamp and service name are automatically added as prefix
-	log.SetFlags(log.Lshortfile)
-}
-
 func main() {
+	// when running as systemd service, journald adds timestamp and service name itself
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if len(groups) == 0 && a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	})))
+
 	var configLocation string
 	flag.StringVar(&configLocation, "c", "/etc/webhook/config.json", "Provide config.json location")
 	flag.Parse()
 
 	configuration, err := config.NewConfiguration(configLocation)
 	if err != nil {
-		log.Fatal("configuration could not be read: ", err)
+		slog.Error("configuration could not be read", "err", err)
+		os.Exit(1)
 	}
 	deployment := deploy.NewDeployment(configuration)
 	handleFunc := hook.NewHook(configuration, deployment).HandleRequest
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleFunc)
-	log.Printf("starting server (%s:%d) \n", configuration.Address(), configuration.Port())
+
+	addr := net.JoinHostPort(configuration.Address(), strconv.Itoa(configuration.Port()))
+	slog.Info("starting server", "addr", addr)
 
 	// explicit timeouts prevent slow clients from holding connections open indefinitely
 	server := &http.Server{
-		Addr:              configuration.Address() + ":" + strconv.Itoa(configuration.Port()),
+		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -49,6 +59,7 @@ func main() {
 	}
 	err = server.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatal("server exited unexpected: ", err)
+		slog.Error("server exited unexpected", "err", err)
+		os.Exit(1)
 	}
 }

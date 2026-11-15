@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2023 Christian Charon
 
-package deploy
-
 // Package deploy executes a configured shell script in response to a trigger.
 // Only one execution is allowed at a time; concurrent requests are dropped.
+package deploy
 
 import (
 	"context"
-	"log"
+	"github.com/ccharon/webhook/internal/config"
+	"log/slog"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync/atomic"
-	"time"
-	"webhook/config"
 )
 
 type Deployment struct {
@@ -39,9 +38,11 @@ func (d *Deployment) Execute(id string, param string) (started bool) {
 }
 
 func (d *Deployment) runScript(id string, param string) {
-	log.Printf("running script %s", d.configuration.Script())
+	defer d.deployRunning.Store(false)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(d.configuration.Timeout())*time.Second)
+	slog.Info("running script", "script", d.configuration.Script(), "id", id, "param", param)
+
+	ctx, cancel := context.WithTimeout(context.Background(), d.configuration.Timeout())
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, d.configuration.Script())
@@ -49,12 +50,9 @@ func (d *Deployment) runScript(id string, param string) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	err := cmd.Run()
-	if err != nil {
-		log.Println("command execution failed: ", err)
+	if err := cmd.Run(); err != nil {
+		slog.Error("command execution failed", "err", err)
 	}
-
-	d.deployRunning.Store(false)
 }
 
 // scriptEnv returns a minimal environment for the subprocess.
@@ -62,19 +60,17 @@ func (d *Deployment) runScript(id string, param string) {
 // (API keys, passwords) that happen to be in the server's environment.
 // Only variables a deployment script is likely to need are passed through.
 func scriptEnv() []string {
-	allowed := map[string]bool{
-		"PATH": true, "HOME": true, "USER": true, "LOGNAME": true,
-		"SHELL": true, "TERM": true, "TZ": true,
-	}
 	var env []string
 	for _, kv := range os.Environ() {
-		key := kv
-		if i := strings.IndexByte(kv, '='); i >= 0 {
-			key = kv[:i]
-		}
-		if allowed[key] || strings.HasPrefix(key, "LANG") || strings.HasPrefix(key, "LC_") {
+		key, _, _ := strings.Cut(kv, "=")
+		switch {
+		case slices.Contains(allowedEnv, key),
+			strings.HasPrefix(key, "LANG"),
+			strings.HasPrefix(key, "LC_"):
 			env = append(env, kv)
 		}
 	}
 	return env
 }
+
+var allowedEnv = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "TZ"}

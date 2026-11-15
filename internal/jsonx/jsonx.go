@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: 2023 Christian Charon
 
-package util
-
-// Package util provides shared helpers used across packages.
+// Package jsonx provides strict JSON decoding helpers used across packages.
+package jsonx
 
 import (
 	"encoding/json"
@@ -27,11 +26,11 @@ func Unmarshal[T any](r io.Reader) (result T, err error) {
 
 		switch {
 		case errors.As(err, &syntaxError):
-			err = errors.New(fmt.Sprintf("data contains badly-formed JSON (at position %d)", syntaxError.Offset))
+			err = fmt.Errorf("data contains badly-formed JSON (at position %d)", syntaxError.Offset)
 		case errors.Is(err, io.ErrUnexpectedEOF):
-			err = errors.New(fmt.Sprintf("data contains badly-formed JSON"))
+			err = errors.New("data contains badly-formed JSON")
 		case errors.As(err, &unmarshalTypeError):
-			err = errors.New(fmt.Sprintf("data contains an invalid value for the %q field (at position %d)", unmarshalTypeError.Field, unmarshalTypeError.Offset))
+			err = fmt.Errorf("data contains an invalid value for the %q field (at position %d)", unmarshalTypeError.Field, unmarshalTypeError.Offset)
 		case strings.HasPrefix(err.Error(), "json: unknown field "):
 			// the field name is user-controlled — never interpolate it into messages that are logged
 			err = errors.New("data contains an unknown field")
