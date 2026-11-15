@@ -83,6 +83,20 @@ case "${WEBHOOK_PARAM:-}" in
             https://github.com/ccharon/factorio-calculator/archive/refs/heads/dist.tar.gz \
             /var/www/factorio.erdferkel.eu
         ;;
+    erdferkel)
+        # before first erdferkel deploy webhook has to be the owner of the target
+        # one time manually run: 'chown -R webhook:webhook /var/www/erdferkel.eu'
+        deploy_static \
+            https://github.com/ccharon/website-erdferkel/archive/refs/heads/dist.tar.gz \
+            /var/www/erdferkel.eu
+        ;;
+    sudoku-solver)
+        # before first sudoku-solver deploy webhook has to be the owner of the target
+        # one time manually run: 'chown -R webhook:webhook /var/www/sudoku.erdferkel.eu'
+        deploy_static \
+            https://github.com/ccharon/website-sudoku/archive/refs/heads/dist.tar.gz \
+            /var/www/sudoku.erdferkel.eu
+        ;;
     *)
         echo "unknown deployment target: ${WEBHOOK_PARAM:-<empty>}" >&2
         exit 1
